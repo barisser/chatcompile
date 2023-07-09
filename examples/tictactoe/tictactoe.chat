@@ -1,0 +1,5 @@
+make a class representing tic tac toe board state
+modify the class to have a 'do_move' function.  It should allow player 1 or 2 to add their piece.
+add assertion checks to 'do_move' that the location is not already taken.
+Add a 'did win' check to determine if the game is over
+make the script runnable, when it runs, we start the game and take turns making moves as players 1 and 2
