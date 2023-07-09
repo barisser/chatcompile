@@ -15,17 +15,16 @@ def oai_complete(prompt, model="gpt-3.5-turbo", context="You are a helpful assis
   return response.choices[0]['message']['content']
 
 
-path = 'demo.chat'
+path = 'examples/tictactoe/tictactoe.chat'
 
 def load(path):
 	return open(path, 'r').readlines()
 
 
-def commands_to_python(commands):
+def commands_to_language(commands, language):
 	lines = commands
 
 	memory = ""
-
 
 	for line in lines:
 		data = line.strip('\n')
@@ -34,44 +33,49 @@ def commands_to_python(commands):
 			"Here is some context for existing code you can use:",
 			memory,
 			"Now write code that fulfills this command: {}".format(data),
-			"Your response should ONLY contain runnable python code, nothing else.",
+			"Your response should ONLY contain runnable {} code, nothing else.".format(language),
 			"Return all the code that should run, including the context code."
 			)
 
 		prompt = "\n".join(prompt)
 		response = oai_complete(prompt)
-		print("{}:\n{}\n\n".format(data, response))
-#		memory += "\n#######\n" + response
+		print("#########\n\nProcessed command: {}".format(data))
+		print("#########\n\n{}:\n{}\n\n".format(data, response))
 		memory = response
 
 
+	print("#########\n\nRefining code:\n\n{}".format(memory))
 	# refine
 	commands_str = "\n".join(lines)
-	prompt2 = "We want to accomplish these goals:\n{}.  This is python code that tries to fulfill these goals.\n\n{}\n\nRewrite this code so it has no errors and correctly fulfills all the goals.  ONLY return runnable python code.  DO NOT return text that is not runnable python code.".format(commands_str, memory)
+	prompt2 = f"We want to accomplish these goals:\n{commands_str}.  This is {language} code that tries to fulfill these goals.\n\n{memory}\n\nRewrite this code so it has no errors and correctly fulfills all the goals.  ONLY return runnable {language} code.  DO NOT return text that is not runnable {language} code."
 	refined = oai_complete(prompt2, model="gpt-4")
 
-	if '```python' in refined:
-		refined2 = refined.split('```')[1].strip('python\n')
+	if f'```{language}' in refined:
+		refined = refined.split('```')[1].strip(f'{language}\n')
+
+	print("#########\n\nRefined code into:\n\n{}".format(memory))
+	return refined
 
 
-	prompt3 = "remove all non-code text.  Remove all un-asked for examples.  Return only runnable code and python-safe comments\n\n{}".format(refined)
-	refined3 = oai_complete(prompt3)
+def build_plan(code, path, language):
+	resp = oai_complete("Give a bash command that compiles the {} file at {}.  For context, the file contains this code {}.  Specify which code is runnable bash with ```bash".format(language, path, code))
+	resp2 = resp.split('```bash')[1].split('```')[0].strip()
+	return resp2
 
-	return refined2
 
-
-def compile(src, dest, language='python'):
-	if language == 'python':
-		code = commands_to_python(load(src))
-	else:
-		raise Exception("Language: {} not supported".format(language))
+def compile(src, dest, language):
+	code = commands_to_language(open(src), language)
 
 	with open(dest, 'w') as fh:
 		fh.write(code)
 
+	compileplan = build_plan(code, dest, language)
 
-compile(path, 'tictactoe.py')
-#code1 = commands_to_python(load(path))
+	planpath = dest.split('.')[0] + '.sh'
+	with open(planpath, 'w') as fh:
+		fh.write(compileplan)
 
-#import pdb;pdb.set_trace()
+	os.system('sh {}'.format(planpath))
 
+
+compile(path, 'tictactoe.cpp', 'c++')
